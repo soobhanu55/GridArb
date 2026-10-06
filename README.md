@@ -73,3 +73,7 @@ Two extensions, each with its own tests (49 Python tests; the C++ suite has 29).
 Python · pandas · scikit-learn · XGBoost · PyTorch · statsmodels · PyWavelets · SHAP · MLflow · SciPy (`linprog`) · Streamlit · Plotly · pytest · GitHub Actions. Data via [SMARD](https://www.smard.de) (Bundesnetzagentur).
 
 Design decisions, data details and the full model list in [`docs/DETAILS.md`](docs/DETAILS.md).
+
+## Test coverage
+
+49 Python tests, **76% line coverage** of `src/` (CI fails below 65%), plus 29 C++ tests for the order-book simulator. The scripts under `scripts/` and the Streamlit app are not unit-tested.
