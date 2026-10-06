@@ -49,6 +49,16 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db   # experiment tracking at loc
 - **Reproducible and fast:** seeded training, GPU if available (the LSTM walk-forward dropped from 30 min on CPU to ~70 s), CPU in CI, per-model result cache so an interrupted run resumes.
 - **49 Python + 29 C++ tests + CI** (GitHub Actions): battery LP hand-calculated cases, feature causality, metrics, backtest logic, model shapes, SHAP additivity.
 
+## Orchestration (Prefect)
+
+`flows/gridarb_flow.py` runs the same pipeline as `scripts/precompute_results.py` as a **Prefect flow**: the SMARD data fetch is a task with retries and backoff,
+every model is its own task with a timeout and one retry, one failing model is recorded in `failed_models` without discarding the others, and each run is
+logged with its parameters and timings. `python flows/gridarb_flow.py` runs it once on a local ephemeral Prefect (no server, no account); `--serve` keeps it
+running on a weekly cron; `prefect server start` gives the UI. Both entry points call the shared `src/pipeline.py`, and the flow's `results.json` is
+identical to the script's (checked on the real cached run). 5 flow tests run in CI (a synthetic series; retry, failure isolation, parity with the plain
+pipeline). Prefect needs a newer Starlette than some other projects pin, so it lives in `requirements-orchestration.txt` and the dashboard and tests of
+everything else do not depend on it.
+
 ## Spread trading study and order-book simulator
 
 Two extensions, each with its own tests (49 Python tests; the C++ suite has 29).

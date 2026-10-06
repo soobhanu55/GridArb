@@ -15,8 +15,8 @@ jobs:
           cache: pip
       # CPU-only torch keeps the install small; tests need no GPU or network
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -r requirements.txt pytest-cov
-      - run: pytest -q --cov=src --cov-report=term --cov-fail-under=65
+      - run: pip install -r requirements.txt -r requirements-orchestration.txt pytest-cov
+      - run: pytest -q --cov=src --cov=flows --cov-report=term --cov-fail-under=65
 
   cpp:
     runs-on: ubuntu-latest
