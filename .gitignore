@@ -12,3 +12,6 @@ mlruns/
 data/cache/
 run.log
 st.log
+intraday_lob/build/
+simulation_results.csv
+data/zone_prices.csv

@@ -17,3 +17,11 @@ jobs:
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -r requirements.txt
       - run: pytest -q
+
+  cpp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S intraday_lob -B intraday_lob/build -DLOB_BUILD_BENCHMARKS=OFF
+      - run: cmake --build intraday_lob/build -j 4
+      - run: ./intraday_lob/build/lob_tests

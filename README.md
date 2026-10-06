@@ -6,7 +6,7 @@ Real German day-ahead electricity prices, forecast with **11 models** (naive bas
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                # 42 tests
+pytest -q                                # 49 tests
 python scripts/precompute_results.py     # ~3-year fetch, 11 models x 180-day walk-forward, backtest, MLflow, SHAP
 streamlit run app.py                     # dashboard at localhost:8501
 mlflow ui --backend-store-uri sqlite:///mlflow.db   # experiment tracking at localhost:5000
@@ -47,7 +47,14 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db   # experiment tracking at loc
 - **One harness for all models** (`src/walk_forward.py`): tabular, sequence and classical models share the same retrain-and-predict loop. The four neural nets share one `SequenceModel` base, so windowing and scaling are identical.
 - **Experiment tracking:** each model is an MLflow child run (params, MAE/RMSE/R², P&L, % of ceiling, runtime, predictions artifact) under one parent run.
 - **Reproducible and fast:** seeded training, GPU if available (the LSTM walk-forward dropped from 30 min on CPU to ~70 s), CPU in CI, per-model result cache so an interrupted run resumes.
-- **42 tests + CI** (GitHub Actions): battery LP hand-calculated cases, feature causality, metrics, backtest logic, model shapes, SHAP additivity.
+- **49 Python + 29 C++ tests + CI** (GitHub Actions): battery LP hand-calculated cases, feature causality, metrics, backtest logic, model shapes, SHAP additivity.
+
+## Spread trading study and order-book simulator
+
+Two extensions, each with its own tests (49 Python tests; the C++ suite has 29).
+
+- **Cross-zone spread study** (`src/spread_trading.py`, `scripts/spread_study.py`, `docs/spread_study.md`): Engle-Granger cointegration screening, OLS hedge ratio, mean-reversion half-life, z-score entry/exit, a cost-aware backtest in EUR (prices go negative, so no percentage returns), and walk-forward validation (pair re-chosen on 180 days, traded on the next 30), run on real day-ahead prices of DE-LU and six neighbouring zones. It is a methodology study: market coupling makes every spread mean-reverting and no instrument lets you trade it, so the high paper Sharpe is not an edge. The report says so, and shows walk-forward against a look-ahead run and three cost levels with block-bootstrap intervals.
+- **Intraday order-book simulator** (`intraday_lob/`, C++20, CMake, GoogleTest): a price-time-priority limit order book with integer tick prices, an inventory-aware market maker and a synthetic order-flow simulator (continuous intraday power trading is an order book), with 29 tests and latency benchmarks. It is generic and synthetic, not calibrated to EPEX data. CI builds and tests it on Linux.
 
 ## Two real bugs, caught by testing
 
