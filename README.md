@@ -1,13 +1,13 @@
 # GridArb: Electricity Price Forecasting + Battery Arbitrage
 
-Real German day-ahead electricity prices, forecast with **11 models** (naive baseline, Holt-Winters, SARIMA, linear, Random Forest, XGBoost, MLP, 1D-CNN, LSTM, CNN-LSTM), then traded through a linear-programming battery dispatch. Walk-forward validated end to end, every run tracked in **MLflow**, the best model explained with **SHAP**. Nothing mocked.
+Real German day-ahead electricity prices, forecast with **12 models** (naive baseline, Holt-Winters, SARIMA, linear, Random Forest, XGBoost, MLP, 1D-CNN, LSTM, CNN-LSTM, Transformer), then traded through a linear-programming battery dispatch. Walk-forward validated end to end, every run tracked in **MLflow**, the best model explained with **SHAP**. Nothing mocked.
 
 ![Dashboard walkthrough](docs/demo_ui.gif)
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                # 49 tests
-python scripts/precompute_results.py     # ~3-year fetch, 11 models x 180-day walk-forward, backtest, MLflow, SHAP
+pytest -q                                # 68 tests
+python scripts/precompute_results.py     # ~3-year fetch, 12 models x 180-day walk-forward, backtest, MLflow, SHAP
 streamlit run app.py                     # dashboard at localhost:8501
 mlflow ui --backend-store-uri sqlite:///mlflow.db   # experiment tracking at localhost:5000
 ```
@@ -24,6 +24,7 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db   # experiment tracking at loc
 | Linear Regression | baseline | 30.74 | 0.631 | €106,540 | 94.6% |
 | LSTM | neural | 32.96 | 0.551 | €101,565 | 90.2% |
 | CNN-LSTM | neural | 33.33 | 0.554 | €101,401 | 90.0% |
+| Transformer (from scratch) | neural | 33.50 | 0.566 | €102,909 | 91.4% |
 | MLP | neural | 35.06 | 0.534 | €103,726 | 92.1% |
 | SARIMA | classical | 40.36 | 0.406 | €102,756 | 91.2% |
 | Naive (same hour, last week) | baseline | 41.07 | 0.253 | €106,156 | 94.3% |
@@ -33,8 +34,8 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db   # experiment tracking at loc
 
 ## What the results actually say
 
-- **Tabular tree models win, deep nets do not.** Random Forest and XGBoost beat every neural network on error *and* on profit. Four neural architectures (MLP, CNN, LSTM, CNN-LSTM), all reading the same raw price window with the same no-leakage rule, land at R² 0.27 to 0.55. With ~25k hourly rows and strong lag structure, engineered lag features beat learned ones.
-- **Better forecast does not mean better trading.** SARIMA, MLP, CNN, LSTM and CNN-LSTM all beat the naive baseline on R², yet all five made *less* money than it. The battery only needs the cheap vs. expensive hours ranked correctly within each day, not low average error.
+- **Tabular tree models win, deep nets do not.** Random Forest and XGBoost beat every neural network on error *and* on profit. Five neural architectures (MLP, CNN, LSTM, CNN-LSTM, a from-scratch Transformer), all reading the same raw price window with the same no-leakage rule, land at R² 0.27 to 0.55. With ~25k hourly rows and strong lag structure, engineered lag features beat learned ones.
+- **Better forecast does not mean better trading.** SARIMA, MLP, CNN, LSTM, CNN-LSTM and the Transformer all beat the naive baseline on R², yet all six made *less* money than it. The battery only needs the cheap vs. expensive hours ranked correctly within each day, not low average error.
 - **The upside over a naive baseline is small.** The best model beats "same hour last week" by about €940 over 179 days (under 1% of P&L). Even the worst forecaster here (Holt-Winters, R² -0.38) still captures 93% of the ceiling, because a battery profits from the daily price shape alone. Forecast quality matters less for this strategy than it first appears.
 - **A wavelet-denoised feature adds nothing.** An ablation of a causal wavelet feature against plain XGBoost: MAE 29.94 vs 29.87, P&L within €60. Reported as a null result; it stays in the repo because the ablation is the evidence.
 - **SHAP:** yesterday's price at the same hour (`price_lag_24h`) drives the XGBoost forecast, about 3.5x the next feature (mean |SHAP| 34.0 vs 9.6 €/MWh).
@@ -47,7 +48,12 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db   # experiment tracking at loc
 - **One harness for all models** (`src/walk_forward.py`): tabular, sequence and classical models share the same retrain-and-predict loop. The four neural nets share one `SequenceModel` base, so windowing and scaling are identical.
 - **Experiment tracking:** each model is an MLflow child run (params, MAE/RMSE/R², P&L, % of ceiling, runtime, predictions artifact) under one parent run.
 - **Reproducible and fast:** seeded training, GPU if available (the LSTM walk-forward dropped from 30 min on CPU to ~70 s), CPU in CI, per-model result cache so an interrupted run resumes.
-- **49 Python + 29 C++ tests + CI** (GitHub Actions): battery LP hand-calculated cases, feature causality, metrics, backtest logic, model shapes, SHAP additivity.
+- **68 Python + 29 C++ tests + CI** (GitHub Actions): battery LP hand-calculated cases, feature causality, metrics, backtest logic, model shapes, SHAP additivity.
+
+## Transformer and graph network, written from scratch
+
+- **Transformer** (`src/transformer.py`): scaled dot-product attention, multi-head projections, pre-LayerNorm residual blocks and sinusoidal positions in plain PyTorch (no `nn.MultiheadAttention`), reading the 144-hour price window as 24 six-hour patches. The tests check the attention and the multi-head layer against PyTorch's own implementations with copied weights. Result in the table above: it lands with the LSTM family (MAE 33.5, 91.4% of the perfect-foresight profit), behind Random Forest and XGBoost, so on 3 years of one hourly series the extra machinery buys nothing.
+- **Graph network over bidding zones** (`src/zone_gnn.py`, `scripts/gnn_study.py`, `docs/gnn_study.md`): a two-layer graph convolution over DE-LU and six neighbouring zones, written from scratch, compared with the same inputs without the graph, with the graph's edges removed, and with DE-LU alone, 5 seeds each. **Negative result:** the DE-LU-only model is the most accurate (MAE 26.4) and the graph is not reliably better than the same inputs without it (intervals include zero); coupled neighbours add little beyond DE-LU's own history. The report also states that the zone models see the full previous day, so they are only comparable with each other.
 
 ## Orchestration (Prefect)
 
@@ -61,7 +67,7 @@ everything else do not depend on it.
 
 ## Spread trading study and order-book simulator
 
-Two extensions, each with its own tests (49 Python tests; the C++ suite has 29).
+Two extensions, each with its own tests (the C++ suite has 29 tests).
 
 - **Cross-zone spread study** (`src/spread_trading.py`, `scripts/spread_study.py`, `docs/spread_study.md`): Engle-Granger cointegration screening, OLS hedge ratio, mean-reversion half-life, z-score entry/exit, a cost-aware backtest in EUR (prices go negative, so no percentage returns), and walk-forward validation (pair re-chosen on 180 days, traded on the next 30), run on real day-ahead prices of DE-LU and six neighbouring zones. It is a methodology study: market coupling makes every spread mean-reverting and no instrument lets you trade it, so the high paper Sharpe is not an edge. The report says so, and shows walk-forward against a look-ahead run and three cost levels with block-bootstrap intervals.
 - **Intraday order-book simulator** (`intraday_lob/`, C++20, CMake, GoogleTest): a price-time-priority limit order book with integer tick prices, an inventory-aware market maker and a synthetic order-flow simulator (continuous intraday power trading is an order book), with 29 tests and latency benchmarks. It is generic and synthetic, not calibrated to EPEX data. CI builds and tests it on Linux.
@@ -86,4 +92,4 @@ Design decisions, data details and the full model list in [`docs/DETAILS.md`](do
 
 ## Test coverage
 
-49 Python tests, **76% line coverage** of `src/` (CI fails below 65%), plus 29 C++ tests for the order-book simulator. The scripts under `scripts/` and the Streamlit app are not unit-tested.
+68 Python tests, **86% line coverage** of `src/` and `flows/` (CI fails below 75%), plus 29 C++ tests for the order-book simulator. The scripts under `scripts/` and the Streamlit app are not unit-tested.

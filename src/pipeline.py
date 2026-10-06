@@ -14,6 +14,7 @@ from src.explain import global_importance, save_summary_plot, shap_values
 from src.features import FEATURE_COLUMNS, FEATURE_COLUMNS_WAVELET
 from src.models import (CNNLSTMModel, CNNModel, HoltWintersModel, LinearModel, LSTMModel, MLPModel,
                         NaivePersistenceModel, RandomForestModel, SARIMAModel, XGBoostModel)
+from src.transformer import TransformerModel
 from src.walk_forward import walk_forward_evaluate
 
 TEST_DAYS = 180
@@ -34,6 +35,7 @@ MODEL_SPECS = [
     ("cnn", CNNModel, True, FEATURE_COLUMNS, "neural"),
     ("lstm", LSTMModel, True, FEATURE_COLUMNS, "neural"),
     ("cnn_lstm", CNNLSTMModel, True, FEATURE_COLUMNS, "neural"),
+    ("transformer", TransformerModel, True, FEATURE_COLUMNS, "neural"),
 ]
 SPEC_BY_NAME = {s[0]: s for s in MODEL_SPECS}
 

@@ -79,5 +79,5 @@ def test_forecast_task_retries_once_then_succeeds(prices, monkeypatch):
 
 def test_model_registry_has_unique_names_and_known_families():
     names = [s[0] for s in pipeline.MODEL_SPECS]
-    assert len(names) == len(set(names)) == 11
+    assert len(names) == len(set(names)) == 12
     assert {s[4] for s in pipeline.MODEL_SPECS} == {"baseline", "classical", "tree", "neural"}

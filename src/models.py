@@ -191,8 +191,8 @@ class SequenceModel:
                 # Not enough history this far back (only happens for the very
                 # first rows of the whole dataset) -- pad by repeating the
                 # earliest known value rather than fabricating a trend.
-                pad = np.full(-start_pos, values[0])
-                seqs[row] = np.concatenate([pad, values[0:end_pos + 1]])
+                head = values[0:max(end_pos + 1, 0)]  # end_pos < 0: the whole window precedes the history
+                seqs[row] = np.concatenate([np.full(self.lookback - len(head), values[0]), head])
             else:
                 seqs[row] = values[start_pos:end_pos + 1]
         return seqs
