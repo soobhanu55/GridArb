@@ -1,0 +1,13 @@
+model_key,model,family,is_neural
+1,naive,baseline,0
+2,linear,baseline,0
+3,holt_winters,classical,0
+4,sarima,classical,0
+5,random_forest,tree,0
+6,xgboost,tree,0
+7,xgboost_wavelet,tree,0
+8,mlp,neural,1
+9,cnn,neural,1
+10,lstm,neural,1
+11,cnn_lstm,neural,1
+12,transformer,neural,1

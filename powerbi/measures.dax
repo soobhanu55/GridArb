@@ -1,0 +1,52 @@
+// Measures for the GridArb model-comparison report. Put them in a table named "_Measures".
+// Relationships: fact_model_day[model_key] and fact_model_summary[model_key] and fact_hourly_tail[model_key] -> dim_model[model_key];
+// fact_model_day[date_key] -> dim_date[date_key]. All many-to-one, single direction.
+
+// ---------- forecast accuracy ----------
+MAE EUR/MWh = AVERAGE ( fact_model_summary[mae] )
+
+RMSE EUR/MWh = AVERAGE ( fact_model_summary[rmse] )
+
+R2 = AVERAGE ( fact_model_summary[r2] )
+
+// Daily error from the daily facts (responds to the date slicer, unlike the whole-window summary above).
+Daily MAE = AVERAGE ( fact_model_day[mae] )
+
+Daily Bias = AVERAGE ( fact_model_day[bias] )   // negative: the model under-forecasts on average
+
+// ---------- trading value (battery LP settled at actual prices) ----------
+Profit EUR = SUM ( fact_model_day[profit_eur] )
+
+Perfect Foresight EUR = SUM ( fact_model_day[perfect_profit_eur] ) / DISTINCTCOUNT ( fact_model_day[model_key] )
+
+Pct Of Perfect = DIVIDE ( [Profit EUR], [Perfect Foresight EUR] )
+
+Profit Gap To Perfect EUR = [Perfect Foresight EUR] - [Profit EUR]
+
+// ---------- the point of the project: accuracy is not trading value ----------
+Naive Profit EUR =
+CALCULATE ( [Profit EUR], FILTER ( ALL ( dim_model ), dim_model[model] = "naive" ) )
+
+Profit vs Naive EUR = [Profit EUR] - [Naive Profit EUR]
+
+// Rank by error and by profit across the models in the current filter context; compare them side by side.
+Rank By MAE = RANKX ( ALLSELECTED ( dim_model ), CALCULATE ( [MAE EUR/MWh] ), , ASC, DENSE )
+
+Rank By Profit = RANKX ( ALLSELECTED ( dim_model ), CALCULATE ( [Profit EUR] ), , DESC, DENSE )
+
+Rank Shift = [Rank By MAE] - [Rank By Profit]   // positive: the model earns more than its accuracy rank suggests
+
+// Days on which the model beat the naive baseline's profit.
+Days Beating Naive =
+VAR m = SELECTEDVALUE ( dim_model[model_key] )
+RETURN
+SUMX (
+    VALUES ( dim_date[date_key] ),
+    VAR mine = CALCULATE ( SUM ( fact_model_day[profit_eur] ), fact_model_day[model_key] = m )
+    VAR naive = CALCULATE ( SUM ( fact_model_day[profit_eur] ), FILTER ( ALL ( dim_model ), dim_model[model] = "naive" ) )
+    RETURN IF ( mine > naive, 1, 0 )
+)
+
+// ---------- hourly chart (last 14 days) ----------
+Actual Price = AVERAGE ( fact_hourly_tail[actual] )
+Predicted Price = AVERAGE ( fact_hourly_tail[predicted] )

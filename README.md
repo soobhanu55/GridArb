@@ -6,7 +6,7 @@ Real German day-ahead electricity prices, forecast with **12 models** (naive bas
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                # 68 tests
+pytest -q                                # 73 tests
 python scripts/precompute_results.py     # ~3-year fetch, 12 models x 180-day walk-forward, backtest, MLflow, SHAP
 streamlit run app.py                     # dashboard at localhost:8501
 mlflow ui --backend-store-uri sqlite:///mlflow.db   # experiment tracking at localhost:5000
@@ -48,12 +48,16 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db   # experiment tracking at loc
 - **One harness for all models** (`src/walk_forward.py`): tabular, sequence and classical models share the same retrain-and-predict loop. The four neural nets share one `SequenceModel` base, so windowing and scaling are identical.
 - **Experiment tracking:** each model is an MLflow child run (params, MAE/RMSE/R², P&L, % of ceiling, runtime, predictions artifact) under one parent run.
 - **Reproducible and fast:** seeded training, GPU if available (the LSTM walk-forward dropped from 30 min on CPU to ~70 s), CPU in CI, per-model result cache so an interrupted run resumes.
-- **68 Python + 29 C++ tests + CI** (GitHub Actions): battery LP hand-calculated cases, feature causality, metrics, backtest logic, model shapes, SHAP additivity.
+- **73 Python + 29 C++ tests + CI** (GitHub Actions): battery LP hand-calculated cases, feature causality, metrics, backtest logic, model shapes, SHAP additivity.
 
 ## Transformer and graph network, written from scratch
 
 - **Transformer** (`src/transformer.py`): scaled dot-product attention, multi-head projections, pre-LayerNorm residual blocks and sinusoidal positions in plain PyTorch (no `nn.MultiheadAttention`), reading the 144-hour price window as 24 six-hour patches. The tests check the attention and the multi-head layer against PyTorch's own implementations with copied weights. Result in the table above: it lands with the LSTM family (MAE 33.5, 91.4% of the perfect-foresight profit), behind Random Forest and XGBoost, so on 3 years of one hourly series the extra machinery buys nothing.
 - **Graph network over bidding zones** (`src/zone_gnn.py`, `scripts/gnn_study.py`, `docs/gnn_study.md`): a two-layer graph convolution over DE-LU and six neighbouring zones, written from scratch, compared with the same inputs without the graph, with the graph's edges removed, and with DE-LU alone, 5 seeds each. **Negative result:** the DE-LU-only model is the most accurate (MAE 26.4) and the graph is not reliably better than the same inputs without it (intervals include zero); coupled neighbours add little beyond DE-LU's own history. The report also states that the zone models see the full previous day, so they are only comparable with each other.
+
+## Power BI
+
+`powerbi/` exports the real results as a star schema (`scripts/export_powerbi.py`, tested; models, days, per-model per-day error and profit, the last 14 days of forecasts), with DAX measures (MAE, profit, percent of perfect foresight, rank by error versus rank by profit, days beating the naive baseline) and a build guide for a four-page report that makes the project's finding visible: the most accurate model is not the most profitable. A `.pbix` file cannot be generated outside Power BI Desktop, so the report is built from the guide in about 30 minutes; see [`powerbi/README.md`](powerbi/README.md).
 
 ## Orchestration (Prefect)
 
@@ -92,4 +96,4 @@ Design decisions, data details and the full model list in [`docs/DETAILS.md`](do
 
 ## Test coverage
 
-68 Python tests, **86% line coverage** of `src/` and `flows/` (CI fails below 75%), plus 29 C++ tests for the order-book simulator. The scripts under `scripts/` and the Streamlit app are not unit-tested.
+73 Python tests, **86% line coverage** of `src/` and `flows/` (CI fails below 75%), plus 29 C++ tests for the order-book simulator. The scripts under `scripts/` and the Streamlit app are not unit-tested.
