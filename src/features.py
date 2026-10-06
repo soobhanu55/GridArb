@@ -69,12 +69,47 @@ def add_lag_features(df: pd.DataFrame, price_col: str = "price_eur_mwh") -> pd.D
     return df
 
 
-def build_feature_frame(raw: pd.DataFrame, price_col: str = "price_eur_mwh") -> pd.DataFrame:
+def _wavelet_denoise_last(window: np.ndarray, wavelet: str, level: int) -> float:
+    """Soft-threshold the detail coefficients (universal threshold) and return the
+    denoised value at the END of the window -- the value a forecaster would act on."""
+    import pywt
+
+    coeffs = pywt.wavedec(window, wavelet, level=level, mode="symmetric")
+    sigma = np.median(np.abs(coeffs[-1])) / 0.6745  # noise level from the finest scale
+    thresh = sigma * np.sqrt(2 * np.log(len(window)))
+    coeffs[1:] = [pywt.threshold(c, thresh, mode="soft") for c in coeffs[1:]]
+    return float(pywt.waverec(coeffs, wavelet, mode="symmetric")[len(window) - 1])
+
+
+def add_wavelet_features(
+    df: pd.DataFrame, price_col: str = "price_eur_mwh", window: int = 168, wavelet: str = "db4", level: int = 3
+) -> pd.DataFrame:
+    """Wavelet-denoised price at t-24h (idea absorbed from DemandLens).
+
+    Causal on purpose: wavelet-denoising the whole series at once would let
+    future prices shape every value. Here each row denoises only the trailing
+    `window` hours ending at t-24h, so the day-ahead information cutoff holds.
+    """
+    df = df.copy()
+    values = df[price_col].shift(24).to_numpy()
+    out = np.full(len(values), np.nan)
+    for i in range(window - 1, len(values)):
+        w = values[i - window + 1 : i + 1]
+        if not np.isnan(w).any():
+            out[i] = _wavelet_denoise_last(w, wavelet, level)
+    df["price_wavelet_24h"] = out
+    return df
+
+
+def build_feature_frame(raw: pd.DataFrame, price_col: str = "price_eur_mwh", wavelet: bool = False) -> pd.DataFrame:
     """Full feature pipeline: calendar + lag/rolling, target = price_eur_mwh.
     Drops rows where lag features are still NaN (the first ~168h of history).
+    With wavelet=True, also adds price_wavelet_24h (costs ~another week of warm-up rows).
     """
     df = add_calendar_features(raw)
     df = add_lag_features(df, price_col=price_col)
+    if wavelet:
+        df = add_wavelet_features(df, price_col=price_col)
     feature_cols = [c for c in df.columns if c not in (price_col, "load_mw")]
     df = df.dropna(subset=feature_cols + [price_col])
     return df
@@ -87,3 +122,5 @@ FEATURE_COLUMNS = [
     "price_roll_mean_24h", "price_roll_std_24h", "price_roll_mean_168h",
     "load_lag_24h", "load_roll_mean_168h",
 ]
+
+FEATURE_COLUMNS_WAVELET = FEATURE_COLUMNS + ["price_wavelet_24h"]

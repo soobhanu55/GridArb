@@ -7,3 +7,8 @@ results.json
 venv/
 .claude/
 dashboard_check.png
+mlflow.db
+mlruns/
+data/cache/
+run.log
+st.log
