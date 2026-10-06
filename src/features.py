@@ -74,6 +74,7 @@ def _wavelet_denoise_last(window: np.ndarray, wavelet: str, level: int) -> float
     denoised value at the END of the window -- the value a forecaster would act on."""
     import pywt
 
+    window = np.array(window, dtype=float)  # writable copy: some PyWavelets builds reject read-only arrays
     coeffs = pywt.wavedec(window, wavelet, level=level, mode="symmetric")
     sigma = np.median(np.abs(coeffs[-1])) / 0.6745  # noise level from the finest scale
     thresh = sigma * np.sqrt(2 * np.log(len(window)))
@@ -91,7 +92,7 @@ def add_wavelet_features(
     `window` hours ending at t-24h, so the day-ahead information cutoff holds.
     """
     df = df.copy()
-    values = df[price_col].shift(24).to_numpy()
+    values = df[price_col].shift(24).to_numpy(dtype=float, copy=True)  # writable copy: pandas copy-on-write arrays are read-only and PyWavelets rejects them
     out = np.full(len(values), np.nan)
     for i in range(window - 1, len(values)):
         w = values[i - window + 1 : i + 1]

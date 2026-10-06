@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.features import add_wavelet_features
+from src.features import _wavelet_denoise_last, add_wavelet_features
 from src.models import (CNNLSTMModel, CNNModel, HoltWintersModel, LSTMModel, MLPModel,
                         RandomForestModel, SARIMAModel)
 
@@ -36,6 +36,13 @@ def test_wavelet_feature_denoises():
     err_denoised = np.abs(out[ok] - lagged_clean[ok]).mean()
     err_raw = np.abs(noisy.shift(24)[ok] - lagged_clean[ok]).mean()
     assert err_denoised < err_raw
+
+
+def test_wavelet_denoise_accepts_read_only_input():
+    """pandas copy-on-write hands out read-only arrays; CI once failed with 'buffer source array is read-only'."""
+    window = np.random.default_rng(0).normal(size=168)
+    window.setflags(write=False)
+    assert np.isfinite(_wavelet_denoise_last(window, "db4", 3))
 
 
 def test_wavelet_feature_nan_during_warmup():
