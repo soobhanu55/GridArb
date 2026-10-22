@@ -36,4 +36,5 @@ jobs:
           cache: pip
       - run: pip install dbt-duckdb
       - name: dbt build (staging, marts and tests over the committed star-schema sample)
-        run: dbt build --project-dir warehouse --profiles-dir warehouse
+        working-directory: warehouse   # data_dir and the DuckDB file are relative to the working directory
+        run: dbt build --profiles-dir .
