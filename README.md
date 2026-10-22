@@ -63,7 +63,7 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db   # experiment tracking at loc
 
 ## Warehouse (dbt + DuckDB)
 
-`warehouse/` is an analytics-engineering layer over the star schema: staging views, three marts (a model leaderboard with both rankings and their gap, every model-day against the naive baseline, monthly profit) and 29 dbt tests on DuckDB, built in CI. Four of the tests check the numbers rather than the keys, and one of them found something real: a model can earn more than the perfect-foresight strategy on a single day, because the battery state of charge carries over between days, so only totals are bounded (details in [`warehouse/README.md`](warehouse/README.md)). The Prefect flow can run it as its last step (`with_warehouse=True`) and fails the run if a test fails.
+`warehouse/` is an analytics-engineering layer over the star schema: staging views, three marts (a model leaderboard with both rankings and their gap, every model-day against the naive baseline, monthly profit) and 26 dbt tests on DuckDB, built in CI. Four of the tests check the numbers rather than the keys, and one of them found something real: a model can earn more than the perfect-foresight strategy on a single day, because the battery state of charge carries over between days, so only totals are bounded (details in [`warehouse/README.md`](warehouse/README.md)). The Prefect flow can run it as its last step (`with_warehouse=True`) and fails the run if a test fails.
 
 ## Orchestration (Prefect)
 

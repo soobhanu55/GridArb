@@ -60,7 +60,7 @@ def _dbt():
 
 @task(retries=0)
 def build_warehouse(results_path: str, data_dir: str = str(ROOT / "powerbi" / "data")) -> None:
-    """Export the star schema from results.json, then `dbt build` the DuckDB warehouse over it (staging, marts and 30+ tests).
+    """Export the star schema from results.json, then `dbt build` the DuckDB warehouse over it (staging, marts and 26 tests).
     Raises when a dbt test fails, so a bad run is visible in the Prefect UI instead of reaching the dashboards."""
     import importlib.util
 

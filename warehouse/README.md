@@ -5,7 +5,7 @@ tested with dbt on DuckDB (a local file, no server).
 
 ```bash
 pip install dbt-duckdb
-cd warehouse && dbt build --profiles-dir .          # 4 staging views, 3 marts, 29 tests
+cd warehouse && dbt build --profiles-dir .          # 4 staging views, 3 marts, 26 tests
 # your own run:  python scripts/export_powerbi.py && dbt build --profiles-dir . --vars '{data_dir: ../powerbi/data}'
 ```
 
