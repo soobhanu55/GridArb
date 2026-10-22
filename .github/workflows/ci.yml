@@ -25,3 +25,15 @@ jobs:
       - run: cmake -S intraday_lob -B intraday_lob/build -DLOB_BUILD_BENCHMARKS=OFF
       - run: cmake --build intraday_lob/build -j 4
       - run: ./intraday_lob/build/lob_tests
+
+  warehouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install dbt-duckdb
+      - name: dbt build (staging, marts and tests over the committed star-schema sample)
+        run: dbt build --project-dir warehouse --profiles-dir warehouse

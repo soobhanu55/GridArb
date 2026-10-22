@@ -1,0 +1,7 @@
+gridarb:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: gridarb.duckdb   # a local file, no server; ignored by git
+      threads: 4

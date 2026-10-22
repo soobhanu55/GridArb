@@ -4,6 +4,8 @@ Real German day-ahead electricity prices, forecast with **12 models** (naive bas
 
 ![Dashboard walkthrough](docs/demo_ui.gif)
 
+**Why now.** Since 1 October 2025 the European day-ahead auction clears in 15-minute products instead of hourly ones ([SDAC go-live notice](https://markt.apg.at/en/news-press/sdac-go-live-of-15-minute-market-time-unit-in-day-ahead-market-coupling-successful-as-of-september-30-2025/)), and battery operators in Germany bid against those prices. This project asks the question that decides whether a forecast is worth having: does a more accurate price forecast earn more with a battery? (Here it does not, reliably.) It still works on hourly prices, so 15-minute resolution is the first thing to change before real use.
+
 ```bash
 pip install -r requirements.txt
 pytest -q                                # 73 tests
@@ -59,13 +61,17 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db   # experiment tracking at loc
 
 `powerbi/` exports the real results as a star schema (`scripts/export_powerbi.py`, tested; models, days, per-model per-day error and profit, the last 14 days of forecasts), with DAX measures (MAE, profit, percent of perfect foresight, rank by error versus rank by profit, days beating the naive baseline) and a build guide for a four-page report that makes the project's finding visible: the most accurate model is not the most profitable. A `.pbix` file cannot be generated outside Power BI Desktop, so the report is built from the guide in about 30 minutes; see [`powerbi/README.md`](powerbi/README.md).
 
+## Warehouse (dbt + DuckDB)
+
+`warehouse/` is an analytics-engineering layer over the star schema: staging views, three marts (a model leaderboard with both rankings and their gap, every model-day against the naive baseline, monthly profit) and 29 dbt tests on DuckDB, built in CI. Four of the tests check the numbers rather than the keys, and one of them found something real: a model can earn more than the perfect-foresight strategy on a single day, because the battery state of charge carries over between days, so only totals are bounded (details in [`warehouse/README.md`](warehouse/README.md)). The Prefect flow can run it as its last step (`with_warehouse=True`) and fails the run if a test fails.
+
 ## Orchestration (Prefect)
 
 `flows/gridarb_flow.py` runs the same pipeline as `scripts/precompute_results.py` as a **Prefect flow**: the SMARD data fetch is a task with retries and backoff,
 every model is its own task with a timeout and one retry, one failing model is recorded in `failed_models` without discarding the others, and each run is
 logged with its parameters and timings. `python flows/gridarb_flow.py` runs it once on a local ephemeral Prefect (no server, no account); `--serve` keeps it
 running on a weekly cron; `prefect server start` gives the UI. Both entry points call the shared `src/pipeline.py`, and the flow's `results.json` is
-identical to the script's (checked on the real cached run). 5 flow tests run in CI (a synthetic series; retry, failure isolation, parity with the plain
+identical to the script's (checked on the real cached run). 8 flow tests run in CI (a synthetic series; retry, failure isolation, parity with the plain
 pipeline). Prefect needs a newer Starlette than some other projects pin, so it lives in `requirements-orchestration.txt` and the dashboard and tests of
 everything else do not depend on it.
 

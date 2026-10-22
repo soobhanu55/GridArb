@@ -81,3 +81,41 @@ def test_model_registry_has_unique_names_and_known_families():
     names = [s[0] for s in pipeline.MODEL_SPECS]
     assert len(names) == len(set(names)) == 12
     assert {s[4] for s in pipeline.MODEL_SPECS} == {"baseline", "classical", "tree", "neural"}
+
+
+class FakeDbt:
+    def __init__(self, ok=True):
+        self.ok, self.calls = ok, []
+
+    def invoke(self, args):
+        from types import SimpleNamespace
+
+        self.calls.append(args)
+        return SimpleNamespace(success=self.ok, exception=None if self.ok else ValueError("test failed"), result=[1, 2, 3])
+
+
+def run_with_warehouse(prices, tmp_path):
+    return gridarb_flow.gridarb_pipeline(prices=prices, models=["naive", "linear"], test_days=14, retrain_every_days=7, cache_dir=None,
+                                         out_path=str(tmp_path / "results.json"), with_shap=False, track_mlflow=False,
+                                         with_warehouse=True, warehouse_data_dir=str(tmp_path / "wh"))
+
+
+def test_warehouse_step_exports_the_star_schema_then_runs_dbt_build(prices, tmp_path, monkeypatch):
+    fake = FakeDbt()
+    monkeypatch.setattr(gridarb_flow, "_dbt", lambda: fake)
+    run_with_warehouse(prices, tmp_path)
+    assert len(fake.calls) == 1 and fake.calls[0][0] == "build" and "--vars" in fake.calls[0]
+    assert (tmp_path / "wh" / "dim_model.csv").exists() and (tmp_path / "wh" / "fact_model_day.csv").exists()
+
+
+def test_a_failing_dbt_test_fails_the_run(prices, tmp_path, monkeypatch):
+    monkeypatch.setattr(gridarb_flow, "_dbt", lambda: FakeDbt(ok=False))
+    with pytest.raises(RuntimeError, match="dbt build failed"):
+        run_with_warehouse(prices, tmp_path)
+
+
+def test_the_warehouse_step_is_off_by_default(prices, monkeypatch):
+    fake = FakeDbt()
+    monkeypatch.setattr(gridarb_flow, "_dbt", lambda: fake)
+    run(prices, models=["naive"])
+    assert fake.calls == []

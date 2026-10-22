@@ -1,1 +1,2 @@
 prefect>=3.0,<4
+dbt-duckdb>=1.8  # optional: the warehouse step (warehouse/)

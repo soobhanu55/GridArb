@@ -19,3 +19,7 @@ data/zone_prices.csv
 .coverage
 htmlcov/
 coverage.xml
+warehouse/gridarb.duckdb
+warehouse/target/
+warehouse/logs/
+warehouse/dbt_packages/

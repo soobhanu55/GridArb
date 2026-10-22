@@ -1,0 +1,13 @@
+version: 2
+models:
+  - name: mart_model_leaderboard
+    description: One row per model with accuracy, trading result and the gap between the two rankings.
+    columns:
+      - name: model_key
+        tests: [unique, not_null]
+      - name: pct_of_perfect
+        tests: [not_null]
+  - name: mart_daily_vs_naive
+    description: Every model-day compared with the naive baseline profit on the same day.
+  - name: mart_model_month
+    description: Monthly profit and share of perfect foresight per model.

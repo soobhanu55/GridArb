@@ -1,0 +1,15 @@
+name: gridarb_warehouse
+version: "1.0.0"
+config-version: 2
+profile: gridarb
+model-paths: ["models"]
+test-paths: ["tests"]
+vars:
+  # the star-schema CSVs written by scripts/export_powerbi.py (a committed sample from the real run lives in powerbi/data)
+  data_dir: "../powerbi/data"
+models:
+  gridarb_warehouse:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

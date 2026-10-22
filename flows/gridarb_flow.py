@@ -52,12 +52,35 @@ def backtest(preds: pd.Series, feat: pd.DataFrame, cfg: BatteryConfig, perfect_t
     return pipeline.trade(preds, feat, cfg, perfect_total)
 
 
+def _dbt():
+    from dbt.cli.main import dbtRunner  # imported here so the flow works without dbt installed
+
+    return dbtRunner()
+
+
+@task(retries=0)
+def build_warehouse(results_path: str, data_dir: str = str(ROOT / "powerbi" / "data")) -> None:
+    """Export the star schema from results.json, then `dbt build` the DuckDB warehouse over it (staging, marts and 30+ tests).
+    Raises when a dbt test fails, so a bad run is visible in the Prefect UI instead of reaching the dashboards."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("export_powerbi", ROOT / "scripts" / "export_powerbi.py")
+    exporter = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(exporter)
+    exporter.export(Path(data_dir), Path(results_path), pipeline.CACHE_DIR)
+    wh = str(ROOT / "warehouse")
+    result = _dbt().invoke(["build", "--project-dir", wh, "--profiles-dir", wh, "--vars", json.dumps({"data_dir": str(data_dir)})])
+    if not result.success:
+        raise RuntimeError(f"dbt build failed: {result.exception or 'a model or test failed'}")
+
+
 @flow(name="gridarb-pipeline", validate_parameters=False, log_prints=True)
 def gridarb_pipeline(prices: pd.DataFrame | None = None, models: list[str] | None = None,
                      test_days: int = pipeline.TEST_DAYS, retrain_every_days: int = pipeline.RETRAIN_EVERY_DAYS,
                      fresh: bool = False, cache_dir: str | None = str(pipeline.CACHE_DIR),
                      out_path: str | None = str(ROOT / "results.json"), with_shap: bool = True,
-                     track_mlflow: bool = True) -> dict:
+                     track_mlflow: bool = True, with_warehouse: bool = False,
+                     warehouse_data_dir: str = str(ROOT / "powerbi" / "data")) -> dict:
     """Forecast with every model over a walk-forward test window, trade the forecasts through the battery LP,
     compare with perfect foresight, explain XGBoost with SHAP and write results.json. `prices` can be passed in
     (tests do); otherwise the data task fetches it."""
@@ -108,6 +131,8 @@ def gridarb_pipeline(prices: pd.DataFrame | None = None, models: list[str] | Non
     results["failed_models"] = failed
     if out_path:
         Path(out_path).write_text(json.dumps(results, indent=2))
+        if with_warehouse:
+            build_warehouse(out_path, warehouse_data_dir)
     if run_ctx is not None:
         if out_path:
             mlflow.log_artifact(out_path)
